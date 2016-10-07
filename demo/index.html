@@ -65,7 +65,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
             });
           });
         };
-        fireEvent(undefined, ['Message with', 'params']);
+        fireEvent(undefined, ['Message with', 'params', new Error('Test')]);
         showLogs();
         </script>
       </template>

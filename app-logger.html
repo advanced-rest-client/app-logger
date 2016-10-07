@@ -104,17 +104,33 @@ Polymer({
     if (this.noDatabase) {
       return;
     }
+    var stack = null;
+    messages = messages.map((item) => {
+      if (item instanceof Error) {
+        stack = item.stack;
+        level = 'error';
+        return item.message;
+      } else if (item instanceof Element) {
+        return item.toString();
+      } else if (item instanceof Date) {
+        return item.toGMTString();
+      }
+      return item;
+    });
     var now = Date.now();
-    let callstack = new Error('').stack.split('\n');
-    if (callstack && callstack.length) {
-      callstack.splice(0, 2);
-      callstack[0] = callstack[0].replace(/\s+at\s/, '');
+    if (!stack) {
+      let stack = new Error('').stack.split('\n');
+      if (stack && stack.length) {
+        stack.splice(0, 2);
+        stack[0] = stack[0].replace(/\s+at\s/, '');
+        stack = stack.join('\n');
+      }
     }
     var _doc = {
       type: level || 'log',
       logs: messages,
       time: now,
-      stack: callstack.join('\n')
+      stack: stack
     };
     _doc._id = this.fire('app-pouchdb-collate-index', {
       doc: _doc,
