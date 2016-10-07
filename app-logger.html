@@ -1,0 +1,138 @@
+<!--
+@license
+Copyright 2016 The Advanced REST client authors <arc@mulesoft.com>
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
+-->
+<link rel="import" href="../polymer/polymer.html">
+<!--
+`<app-logger>` A logger for web components. Allows to print messages and save them into the datastore
+
+### Example
+```
+<app-logger level="info"></app-logger>
+```
+
+### Styling
+`<app-logger>` provides the following custom properties and mixins for styling:
+
+Custom property | Description | Default
+----------------|-------------|----------
+`--app-logger` | Mixin applied to the element | `{}`
+
+@group UI Elements
+@element app-logger
+@demo demo/index.html
+-->
+<dom-module id="app-logger">
+  <template>
+    <style>
+     :host {
+      display: block;
+    }
+    </style>
+  </template>
+  <script>
+  Polymer({
+
+    is: 'app-logger',
+    properties: {
+      /**
+       * Level of debug messages.
+       * By default all incomming messages will be logged. It's possible to limit it according
+       * to the following hierarchy:
+       * - error
+       * - warning
+       * - debug
+       * - info
+       * For example if `warning` is set it will log errors from `error` and `warning` level.
+       */
+      level: String
+    },
+
+    attached: function() {
+      this._eventTarget = Polymer.dom(this).host || document;
+      this.listen(this._eventTarget, 'app-log', '_handleLog');
+    },
+
+    detached: function() {
+      this.unlisten(this._eventTarget, 'app-log', '_handleLog');
+    },
+
+    _handleLog: function(event) {
+      var detail = event.detail;
+      if (!detail) {
+        return;
+      }
+      var level = detail.level || undefined;
+      var msg = detail.message;
+      if (msg instanceof Array) {
+        msg.unshift(level);
+      } else {
+        msg = [level, msg];
+      }
+      if (this.log.apply(this, msg)) {
+        event.stopImmediatePropagation();
+        event.preventDefault();
+      }
+    },
+
+    log: function(level, ...messages) {
+      if (!this.checkLevel(level)) {
+        return false;
+      }
+      if (!level) {
+        console.log.apply(console, messages);
+      } else {
+        console[level].apply(console, messages);
+      }
+      var now = Date.now();
+      let callstack = new Error('').stack.split('\n');
+      if (callstack && callstack.length) {
+        callstack.splice(0, 2);
+        callstack[0] = callstack[0].replace(/\s+at\s/, '');
+      }
+      var _doc = {
+        type: level || 'log',
+        logs: messages,
+        time: now,
+        stack: callstack.join('\n')
+      };
+      _doc._id = this.fire('app-pouchdb-collate-index', {
+        doc: _doc,
+        sort: ['time', 'type']
+      }).detail._id;
+      this.fire('arc-database-insert', {
+        store: 'logs',
+        docs: _doc
+      });
+    },
+
+    checkLevel(level) {
+      if (!this.level) {
+        return true;
+      }
+      if (!level && this.level) {
+        return false;
+      }
+      switch (this.level) {
+        case 'error':
+          return ['error'].indexOf(level) !== -1;
+        case 'warning':
+          return ['error', 'warning'].indexOf(level) !== -1;
+        case 'debug':
+          return ['error', 'warning', 'debug'].indexOf(level) !== -1;
+        default:
+          return true;
+      }
+    }
+  });
+  </script>
+</dom-module>
