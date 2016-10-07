@@ -119,7 +119,7 @@ Polymer({
     });
     var now = Date.now();
     if (!stack) {
-      let stack = new Error('').stack.split('\n');
+      stack = new Error('').stack.split('\n');
       if (stack && stack.length) {
         stack.splice(0, 2);
         stack[0] = stack[0].replace(/\s+at\s/, '');
