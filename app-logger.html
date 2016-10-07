@@ -15,124 +15,134 @@ the License.
 <!--
 `<app-logger>` A logger for web components. Allows to print messages and save them into the datastore
 
+It listening for `app-log` events and logs evens when the event occure.
+The event detail object may have `level` property which describes log level of the message.
+It should also contain `message` property with the message to log.
+
+See `level` property documentation for logging level details.
+
+This element works with `<arc-database>` element and fires an event with the log details
+to store log data into the database. By default the database name is `logs`. It can be owerriten
+by setting the `store` property.
+This behavior can be switched off by setting `noDatabase` attribute.
+
+Note that this element will not check for database insert errors and basically it will not react
+on any error during database insert. Also it will not check if the `<arc-database>` element
+exists in the documenmt. This will just fire an event and allow other elements to take care of it.
+
 ### Example
 ```
 <app-logger level="info"></app-logger>
 ```
 
-### Styling
-`<app-logger>` provides the following custom properties and mixins for styling:
-
-Custom property | Description | Default
-----------------|-------------|----------
-`--app-logger` | Mixin applied to the element | `{}`
-
-@group UI Elements
+@group Logic Elements
 @element app-logger
 @demo demo/index.html
+@hero hero.svg
 -->
-<dom-module id="app-logger">
-  <template>
-    <style>
-     :host {
-      display: block;
+<script>
+Polymer({
+
+  is: 'app-logger',
+  properties: {
+    /**
+     * Level of debug messages.
+     * By default all incomming messages will be logged. It's possible to limit it according
+     * to the following hierarchy:
+     * - error
+     * - warning
+     * - debug
+     * - info
+     * For example if `warning` is set it will log errors from `error` and `warning` level.
+     */
+    level: String,
+    // If set it will not file database insert event.
+    noDatabase: Boolean,
+    // Store name where to insert the log data.
+    store: {
+      type: String,
+      value: 'logs'
     }
-    </style>
-  </template>
-  <script>
-  Polymer({
+  },
 
-    is: 'app-logger',
-    properties: {
-      /**
-       * Level of debug messages.
-       * By default all incomming messages will be logged. It's possible to limit it according
-       * to the following hierarchy:
-       * - error
-       * - warning
-       * - debug
-       * - info
-       * For example if `warning` is set it will log errors from `error` and `warning` level.
-       */
-      level: String
-    },
+  attached: function() {
+    this._eventTarget = Polymer.dom(this).host || document;
+    this.listen(this._eventTarget, 'app-log', '_handleLog');
+  },
 
-    attached: function() {
-      this._eventTarget = Polymer.dom(this).host || document;
-      this.listen(this._eventTarget, 'app-log', '_handleLog');
-    },
+  detached: function() {
+    this.unlisten(this._eventTarget, 'app-log', '_handleLog');
+  },
 
-    detached: function() {
-      this.unlisten(this._eventTarget, 'app-log', '_handleLog');
-    },
+  _handleLog: function(event) {
+    var detail = event.detail;
+    if (!detail) {
+      return;
+    }
+    var level = detail.level || undefined;
+    var msg = detail.message;
+    if (msg instanceof Array) {
+      msg.unshift(level);
+    } else {
+      msg = [level, msg];
+    }
+    if (this.log.apply(this, msg)) {
+      event.stopImmediatePropagation();
+      event.preventDefault();
+    }
+  },
 
-    _handleLog: function(event) {
-      var detail = event.detail;
-      if (!detail) {
-        return;
-      }
-      var level = detail.level || undefined;
-      var msg = detail.message;
-      if (msg instanceof Array) {
-        msg.unshift(level);
-      } else {
-        msg = [level, msg];
-      }
-      if (this.log.apply(this, msg)) {
-        event.stopImmediatePropagation();
-        event.preventDefault();
-      }
-    },
+  log: function(level, ...messages) {
+    if (!this.checkLevel(level)) {
+      return false;
+    }
+    if (!level) {
+      console.log.apply(console, messages);
+    } else {
+      console[level].apply(console, messages);
+    }
+    if (this.noDatabase) {
+      return;
+    }
+    var now = Date.now();
+    let callstack = new Error('').stack.split('\n');
+    if (callstack && callstack.length) {
+      callstack.splice(0, 2);
+      callstack[0] = callstack[0].replace(/\s+at\s/, '');
+    }
+    var _doc = {
+      type: level || 'log',
+      logs: messages,
+      time: now,
+      stack: callstack.join('\n')
+    };
+    _doc._id = this.fire('app-pouchdb-collate-index', {
+      doc: _doc,
+      sort: ['time', 'type']
+    }).detail._id;
+    this.fire('arc-database-insert', {
+      store: this.store,
+      docs: _doc
+    });
+  },
 
-    log: function(level, ...messages) {
-      if (!this.checkLevel(level)) {
-        return false;
-      }
-      if (!level) {
-        console.log.apply(console, messages);
-      } else {
-        console[level].apply(console, messages);
-      }
-      var now = Date.now();
-      let callstack = new Error('').stack.split('\n');
-      if (callstack && callstack.length) {
-        callstack.splice(0, 2);
-        callstack[0] = callstack[0].replace(/\s+at\s/, '');
-      }
-      var _doc = {
-        type: level || 'log',
-        logs: messages,
-        time: now,
-        stack: callstack.join('\n')
-      };
-      _doc._id = this.fire('app-pouchdb-collate-index', {
-        doc: _doc,
-        sort: ['time', 'type']
-      }).detail._id;
-      this.fire('arc-database-insert', {
-        store: 'logs',
-        docs: _doc
-      });
-    },
-
-    checkLevel(level) {
-      if (!this.level) {
+  checkLevel(level) {
+    if (!this.level) {
+      return true;
+    }
+    if (!level && this.level) {
+      return false;
+    }
+    switch (this.level) {
+      case 'error':
+        return ['error'].indexOf(level) !== -1;
+      case 'warning':
+        return ['error', 'warning'].indexOf(level) !== -1;
+      case 'debug':
+        return ['error', 'warning', 'debug'].indexOf(level) !== -1;
+      default:
         return true;
-      }
-      if (!level && this.level) {
-        return false;
-      }
-      switch (this.level) {
-        case 'error':
-          return ['error'].indexOf(level) !== -1;
-        case 'warning':
-          return ['error', 'warning'].indexOf(level) !== -1;
-        case 'debug':
-          return ['error', 'warning', 'debug'].indexOf(level) !== -1;
-        default:
-          return true;
-      }
     }
-  });
-  </script>
-</dom-module>
+  }
+});
+</script>
