@@ -106,7 +106,9 @@ Polymer({
     }
     var stack = null;
     messages = messages.map((item) => {
-      if (item instanceof Error) {
+      if (typeof item === 'string') {
+        return item;
+      } else if (item instanceof Error) {
         stack = item.stack;
         level = 'error';
         return item.message;
@@ -114,8 +116,14 @@ Polymer({
         return item.toString();
       } else if (item instanceof Date) {
         return item.toGMTString();
+      } else if (item instanceof Event) {
+        let msg = `[Event] type: ${item.type}`;
+        if (item.detail) {
+          msg += ', detail: ' + JSON.stringify(item.detail);
+        }
+        return msg;
       }
-      return item;
+      return String(item);
     });
     var now = Date.now();
     if (!stack) {
