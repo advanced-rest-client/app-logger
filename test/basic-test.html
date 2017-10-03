@@ -16,9 +16,6 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
     <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
     <script src="../../web-component-tester/browser.js"></script>
     <script src="../../iron-test-helpers/test-helpers.js"></script>
-    <script src="../../iron-test-helpers/mock-interactions.js"></script>
-
-    <!-- Step 1: import the element to test -->
     <link rel="import" href="../app-logger.html">
   </head>
   <body>
@@ -30,11 +27,93 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
     </test-fixture>
 
     <script>
-    /* global suite, test, fixture, assert */
+    /* global fixture, assert */
     suite('basic', function() {
-      test('`app-logger` should be initialized', function() {
-        var element = fixture('basic');
-        assert.equal(element.isAttached, true, 'element.isAttached equals true');
+      var element;
+      setup(function() {
+        element = fixture('basic');
+      });
+
+      suite('_prepareDoc()', function() {
+        test('Prepares doc with strings', function() {
+          var msg = ['t', 'e', 's', 't'];
+          var result = element._prepareDoc(msg);
+          assert.typeOf(result, 'object', 'result is an object');
+          assert.typeOf(result.logs, 'array', 'Logs is an array');
+          assert.lengthOf(result.logs, 4, 'logs has 4 items');
+          assert.equal(result.type, 'log', 'Type has default value');
+          assert.typeOf(result.time, 'number', 'time is set');
+          assert.typeOf(result.stack, 'string', 'stack is set');
+        });
+
+        test('Accepts error object', function() {
+          var msg = [new Error('test')];
+          var result = element._prepareDoc(msg, 'log');
+          assert.typeOf(result.logs, 'array', 'Logs is an array');
+          assert.lengthOf(result.logs, 1, 'logs has 1 item');
+          assert.equal(result.type, 'error', 'Overrides passed log to error');
+          assert.equal(result.logs[0], 'test', 'Log is set');
+        });
+
+        test('Accepts html element', function() {
+          var msg = [document.createElement('app-logger')];
+          var result = element._prepareDoc(msg);
+          assert.typeOf(result.logs, 'array', 'Logs is an array');
+          assert.lengthOf(result.logs, 1, 'logs has 1 item');
+          assert.equal(result.logs[0], '[object HTMLElement]', 'Log is set');
+        });
+
+        test('Accepts Date object', function() {
+          var msg = [new Date()];
+          var result = element._prepareDoc(msg);
+          assert.typeOf(result.logs, 'array', 'Logs is an array');
+          assert.lengthOf(result.logs, 1, 'logs has 1 item');
+          assert.typeOf(result.logs[0], 'string', 'Log is set');
+        });
+
+        test('Accepts Event object', function() {
+          var event = new CustomEvent('test-event');
+          var msg = [event];
+          var result = element._prepareDoc(msg);
+          assert.typeOf(result.logs, 'array', 'Logs is an array');
+          assert.lengthOf(result.logs, 1, 'logs has 1 item');
+          assert.isTrue(result.logs[0].indexOf('test-event') !== -1, 'Log is set');
+        });
+
+        test('Accepts Event object with detail', function() {
+          var event = new CustomEvent('test-event', {
+            detail: {
+              'test-prop': 'test-val'
+            }
+          });
+          var msg = [event];
+          var result = element._prepareDoc(msg);
+          assert.typeOf(result.logs, 'array', 'Logs is an array');
+          assert.lengthOf(result.logs, 1, 'logs has 1 item');
+          assert.isTrue(result.logs[0].indexOf('test-event') !== -1, 'Log is set');
+          assert.isTrue(result.logs[0].indexOf('test-prop') !== -1, 'Detail is ssert');
+          assert.isTrue(result.logs[0].indexOf('test-val') !== -1, 'Detail is ssert');
+        });
+      });
+
+      suite('log()', function() {
+
+        test('Returns a promise', function() {
+          var result = element.log(undefined, ['test']);
+          assert.typeOf(result, 'promise');
+        });
+
+        test('Promise resolves to insert result', function() {
+          return element.log(undefined, test)
+          .then(result => {
+            assert.isTrue(result.ok);
+            return element.db.get(result.id);
+          })
+          .then(doc => {
+            assert.typeOf(doc.logs, 'array');
+            assert.lengthOf(doc.logs, 1);
+          });
+        });
       });
     });
     </script>

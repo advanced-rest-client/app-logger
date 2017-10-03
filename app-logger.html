@@ -12,8 +12,10 @@ License for the specific language governing permissions and limitations under
 the License.
 -->
 <link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../app-pouchdb/pouchdb.html">
+<link rel="import" href="../app-pouchdb-collate/app-pouchdb-collate.html">
 <!--
-`<app-logger>` A logger for web components. Allows to print messages and save them into the datastore
+A logger for web components. Allows to print messages and save them into the datastore
 
 It listening for `app-log` events and logs evens when the event occure.
 The event detail object may have `level` property which describes log level of the message.
@@ -21,152 +23,172 @@ It should also contain `message` property with the message to log.
 
 See `level` property documentation for logging level details.
 
-This element works with `<arc-database>` element and fires an event with the log details
-to store log data into the database. By default the database name is `logs`. It can be owerriten
-by setting the `store` property.
-This behavior can be switched off by setting `noDatabase` attribute.
-
-Note that this element will not check for database insert errors and basically it will not react
-on any error during database insert. Also it will not check if the `<arc-database>` element
-exists in the documenmt. This will just fire an event and allow other elements to take care of it.
-
 ### Example
-```
+
+#### Handling info events only
+
+```html
 <app-logger level="info"></app-logger>
+```
+
+#### Handling all events
+
+```html
+<app-logger></app-logger>
 ```
 
 @group Logic Elements
 @element app-logger
-@demo demo/index.html
 @hero hero.svg
 -->
-<script>
-Polymer({
-
-  is: 'app-logger',
-  properties: {
-    /**
-     * Level of debug messages.
-     * By default all incomming messages will be logged. It's possible to limit it according
-     * to the following hierarchy:
-     * - error
-     * - warning
-     * - debug
-     * - info
-     * For example if `warning` is set it will log errors from `error` and `warning` level.
-     */
-    level: String,
-    // If set it will not file database insert event.
-    noDatabase: Boolean,
-    // Store name where to insert the log data.
-    store: {
-      type: String,
-      value: 'logs'
+<dom-module id="app-logger">
+  <template>
+    <style>
+    :host {
+      display: none;
     }
-  },
+    </style>
+    <app-pouchdb-collate id="collate"></app-pouchdb-collate>
+  </template>
+  <script>
+  Polymer({
 
-  attached: function() {
-    this._eventTarget = Polymer.dom(this).host || document;
-    this.listen(this._eventTarget, 'app-log', '_handleLog');
-  },
+    is: 'app-logger',
+    properties: {
+      /**
+       * Level of debug messages.
+       * By default all incomming messages will be logged. It's possible to limit it according
+       * to the following hierarchy:
+       * - error
+       * - warning
+       * - debug
+       * - info
+       * For example if `warning` is set it will log errors from `error` and `warning` level.
+       */
+      level: String,
+      // If set, the data store inster is disabled.
+      noDatabase: Boolean
+    },
 
-  detached: function() {
-    this.unlisten(this._eventTarget, 'app-log', '_handleLog');
-  },
+    get db() {
+      return new PouchDB('logs');
+    },
 
-  _handleLog: function(event) {
-    var detail = event.detail;
-    if (!detail) {
-      return;
-    }
-    var level = detail.level || undefined;
-    var msg = detail.message;
-    if (msg instanceof Array) {
-      msg.unshift(level);
-    } else {
-      msg = [level, msg];
-    }
-    if (this.log.apply(this, msg)) {
+    attached: function() {
+      this._eventTarget = Polymer.dom(this).host || document;
+      this.listen(this._eventTarget, 'app-log', '_handleLog');
+    },
+
+    detached: function() {
+      this.unlisten(this._eventTarget, 'app-log', '_handleLog');
+    },
+
+    _handleLog: function(event) {
+      var detail = event.detail;
+      if (!detail) {
+        return;
+      }
+      var level = detail.level || undefined;
+      var msg = detail.message;
+      if (msg instanceof Array) {
+        msg.unshift(level);
+      } else {
+        msg = [level, msg];
+      }
       event.stopImmediatePropagation();
       event.preventDefault();
-    }
-  },
-
-  log: function(level, ...messages) {
-    if (!this.checkLevel(level)) {
-      return false;
-    }
-    if (!level) {
-      console.log.apply(console, messages);
-    } else {
-      console[level].apply(console, messages);
-    }
-    if (this.noDatabase) {
-      return;
-    }
-    var stack = null;
-    messages = messages.map((item) => {
-      if (typeof item === 'string') {
-        return item;
-      } else if (item instanceof Error) {
-        stack = item.stack;
-        level = 'error';
-        return item.message;
-      } else if (item instanceof Element) {
-        return item.toString();
-      } else if (item instanceof Date) {
-        return item.toGMTString();
-      } else if (item instanceof Event) {
-        let msg = `[Event] type: ${item.type}`;
-        if (item.detail) {
-          msg += ', detail: ' + JSON.stringify(item.detail);
+      this.log.apply(this, msg);
+    },
+    /**
+     * Logs a message.
+     *
+     * @param {String} level Log level
+     * @param {any} messages list of objects to log
+     */
+    log: function(level, ...messages) {
+      if (!this.checkLevel(level)) {
+        return Promise.resolve();
+      }
+      if (!level) {
+        console.log.apply(console, messages);
+      } else {
+        (console[level] || console.log).apply(console, messages);
+      }
+      if (this.noDatabase) {
+        return Promise.resolve();
+      }
+      var doc = this._prepareDoc(messages, level);
+      doc._id = this._getId(doc, ['time', 'type']);
+      return this.db.put(doc);
+    },
+    /**
+     * Prepares a document to insert into the datastore from messages
+     *
+     * @param {Array} messages List of objects to insert into the datastore.
+     * @param {?String} level Log level
+     * @return {Object} PouchDB datastore document.
+     */
+    _prepareDoc: function(messages, level) {
+      var now = Date.now();
+      var result = {
+        type: level || 'log',
+        time: now
+      };
+      messages = messages.map(item => {
+        if (typeof item === 'string') {
+          return item;
+        } else if (item instanceof Error) {
+          result.stack = item.stack;
+          result.type = 'error';
+          return item.message;
+        } else if (item instanceof Element) {
+          return item.toString();
+        } else if (item instanceof Date) {
+          return item.toGMTString();
+        } else if (item instanceof Event) {
+          let msg = `[Event] type: ${item.type}`;
+          if (item.detail) {
+            msg += ', detail: ' + JSON.stringify(item.detail);
+          }
+          return msg;
         }
-        return msg;
+        return String(item);
+      });
+      result.logs = messages;
+      if (!result.stack) {
+        let stack = new Error('').stack.split('\n');
+        if (stack && stack.length) {
+          stack.splice(0, 2);
+          stack[0] = stack[0].replace(/\s+at\s/, '');
+          stack = stack.join('\n');
+        }
+        result.stack = stack;
       }
-      return String(item);
-    });
-    var now = Date.now();
-    if (!stack) {
-      stack = new Error('').stack.split('\n');
-      if (stack && stack.length) {
-        stack.splice(0, 2);
-        stack[0] = stack[0].replace(/\s+at\s/, '');
-        stack = stack.join('\n');
-      }
-    }
-    var _doc = {
-      type: level || 'log',
-      logs: messages,
-      time: now,
-      stack: stack
-    };
-    _doc._id = this.fire('app-pouchdb-collate-index', {
-      doc: _doc,
-      sort: ['time', 'type']
-    }).detail._id;
-    this.fire('arc-database-insert', {
-      store: this.store,
-      docs: _doc
-    });
-  },
+      return result;
+    },
 
-  checkLevel(level) {
-    if (!this.level) {
-      return true;
-    }
-    if (!level && this.level) {
-      return false;
-    }
-    switch (this.level) {
-      case 'error':
-        return ['error'].indexOf(level) !== -1;
-      case 'warning':
-        return ['error', 'warning'].indexOf(level) !== -1;
-      case 'debug':
-        return ['error', 'warning', 'debug'].indexOf(level) !== -1;
-      default:
+    _getId: function(doc, sort) {
+      return this.$.collate.getId(doc, sort);
+    },
+
+    checkLevel: function(level) {
+      if (!this.level) {
         return true;
+      }
+      if (!level && this.level) {
+        return false;
+      }
+      switch (this.level) {
+        case 'error':
+          return ['error'].indexOf(level) !== -1;
+        case 'warning':
+          return ['error', 'warning'].indexOf(level) !== -1;
+        case 'debug':
+          return ['error', 'warning', 'debug'].indexOf(level) !== -1;
+        default:
+          return true;
+      }
     }
-  }
-});
-</script>
+  });
+  </script>
+</dom-module>
