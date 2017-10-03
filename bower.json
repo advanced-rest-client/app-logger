@@ -33,11 +33,15 @@
   },
   "ignore": [
     "**/.*",
-    "dependencyci.yml",
     "node_modules",
     "bower_components",
     "test",
-    "tasks"
-  ],
-  "version": "0.0.5"
+    "tasks",
+    "wct.conf.json",
+    "package.json",
+    "package-lock.json",
+    "index.html",
+    "hero.svg",
+    "CONTRIBUTING.md"
+  ]
 }
