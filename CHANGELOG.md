@@ -1,3 +1,19 @@
+<a name="0.1.1"></a>
+## [0.1.1](https://github.com/advanced-rest-client/app-logger/compare/0.0.5...0.1.1) (2017-10-03)
+
+
+### Fix
+
+* Fixed stack getter ([95b7851e5908d4729287643859ca478a751f614d](https://github.com/advanced-rest-client/app-logger/commit/95b7851e5908d4729287643859ca478a751f614d))
+* Fixed tests ([3a3f642643b88552277b794552b0d661a4e61be0](https://github.com/advanced-rest-client/app-logger/commit/3a3f642643b88552277b794552b0d661a4e61be0))
+
+### Update
+
+* Added new Travis configuration ([0ebba8ad7d8ab78d25b3dc6bbb2d566957fbca96](https://github.com/advanced-rest-client/app-logger/commit/0ebba8ad7d8ab78d25b3dc6bbb2d566957fbca96))
+* Updated tests configurqation to new model. ([25dca740c9a6b624ea7384bc98b35fe6b8b66c37](https://github.com/advanced-rest-client/app-logger/commit/25dca740c9a6b624ea7384bc98b35fe6b8b66c37))
+
+
+
 <a name="0.0.5"></a>
 ## 0.0.5 (2016-10-10)
 

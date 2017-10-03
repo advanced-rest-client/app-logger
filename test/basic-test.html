@@ -60,7 +60,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
           var result = element._prepareDoc(msg);
           assert.typeOf(result.logs, 'array', 'Logs is an array');
           assert.lengthOf(result.logs, 1, 'logs has 1 item');
-          assert.equal(result.logs[0], '[object HTMLElement]', 'Log is set');
+          assert.typeOf(result.logs[0], 'string', 'Log is set');
         });
 
         test('Accepts Date object', function() {
@@ -100,7 +100,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
         test('Returns a promise', function() {
           var result = element.log(undefined, ['test']);
-          assert.typeOf(result, 'promise');
+          assert.ok(result);
+          assert.typeOf(result.then, 'function');
         });
 
         test('Promise resolves to insert result', function() {

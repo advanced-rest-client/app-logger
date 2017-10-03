@@ -1,6 +1,6 @@
 {
   "name": "app-logger",
-  "version": "0.0.5",
+  "version": "0.1.1",
   "license": "Apache-2.0 OR CC-BY-4.0",
   "description": "A logger for web components. Allows to print messages and save them into the datastore",
   "devDependencies": {

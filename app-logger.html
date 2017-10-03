@@ -156,13 +156,15 @@ See `level` property documentation for logging level details.
       });
       result.logs = messages;
       if (!result.stack) {
-        let stack = new Error('').stack.split('\n');
-        if (stack && stack.length) {
+        let err = new Error('');
+        let stack = err.stack;
+        if (stack) {
+          stack = stack.split('\n');
           stack.splice(0, 2);
           stack[0] = stack[0].replace(/\s+at\s/, '');
           stack = stack.join('\n');
         }
-        result.stack = stack;
+        result.stack = stack || '';
       }
       return result;
     },
